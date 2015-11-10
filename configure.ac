@@ -13,7 +13,7 @@ dnl Local copyright notices.
 dnl -------------------------------------------------------------------------
 
 AC_COPYRIGHT([dnl
-#### Configuration script for blpapi
+#### Configuration script for dukascli
 #### Copyright (C) 2010-2015  Sebastian Freundt
 
 ### Don't edit this script!
