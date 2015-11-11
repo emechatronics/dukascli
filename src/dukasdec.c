@@ -168,14 +168,11 @@ dump_tick(const struct ctx_s ctx[static 1U], struct dc_s *tl)
 	int32_t off = ctx->tsoff;
 
 	if (ctx->all_ticks_p ||
-	    tl->bp.i != last.bp.i || tl->bq.i != last.bq.i) {
-		printf("%u.%03u\t%s\tb\t%f\t%f\n",
-		       ts + off, ms, ctx->sym, tl->bp.d, tl->bq.d);
-	}
-	if (ctx->all_ticks_p ||
+	    tl->bp.i != last.bp.i || tl->bq.i != last.bq.i ||
 	    tl->ap.i != last.ap.i || tl->aq.i != last.aq.i) {
-		printf("%u.%03u\t%s\ta\t%f\t%f\n",
-		       ts + off, ms, ctx->sym, tl->ap.d, tl->aq.d);
+		printf("%u.%03u\t%s\t%f\t%f\t%f\t%f\n",
+		       ts + off, ms, ctx->sym,
+		       tl->bq.d, tl->bp.d, tl->ap.d, tl->aq.d);
 	}
 	/* for our compressor */
 	if (LIKELY(!ctx->all_ticks_p)) {
@@ -194,14 +191,11 @@ dump_tick_bi5(const struct ctx_s ctx[static 1U], struct dqbi5_s *tl)
 	int32_t off = ctx->tsoff;
 
 	if (ctx->all_ticks_p ||
-	    tl->bp != last.bp || tl->bq.i != last.bq.i) {
-		printf("%u.%03u\t%s\tb\t%u\t%f\n",
-		       ts + off, ms, ctx->sym, tl->bp, tl->bq.d);
-	}
-	if (ctx->all_ticks_p ||
+	    tl->bp != last.bp || tl->bq.i != last.bq.i ||
 	    tl->ap != last.ap || tl->aq.i != last.aq.i) {
-		printf("%u.%03u\t%s\ta\t%u\t%f\n",
-		       ts + off, ms, ctx->sym, tl->ap, tl->aq.d);
+		printf("%u.%03u\t%s\t%f\t%u\t%u\t%f\n",
+		       ts + off, ms, ctx->sym,
+		       tl->bq.d, tl->bp, tl->ap, tl->aq.d);
 	}
 	/* for our compressor */
 	if (LIKELY(!ctx->all_ticks_p)) {
