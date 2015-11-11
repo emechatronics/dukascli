@@ -140,11 +140,13 @@ rd1(struct dc_s *restrict b, int fd)
 	return 0;
 }
 
-static int
+static size_t
 rd1bi5(struct dqbi5_s *restrict b, size_t nb, int fd)
 {
-	if (UNLIKELY(read(fd, b, nb * sizeof(*b)) <= 0)) {
-		return -1;
+	ssize_t nrd;
+
+	if (UNLIKELY((nrd = read(fd, b, nb * sizeof(*b))) <= 0)) {
+		return 0U;
 	}
 	do {
 		b->ts = be32toh(b->ts);
@@ -153,7 +155,7 @@ rd1bi5(struct dqbi5_s *restrict b, size_t nb, int fd)
 		b->aq.i = be32toh(b->aq.i);
 		b->bq.i = be32toh(b->bq.i);
 	} while (b++, --nb);
-	return 0;
+	return nrd / sizeof(*b);
 }
 
 static void
@@ -189,40 +191,39 @@ dump(const struct ctx_s ctx[static 1U], int fd)
 		struct dc_s bin[1U];
 		struct dqbi5_s bi5[2U];
 	} buf = {};
+	size_t i = 0U;
 
-	/* read a probe */
-	if (UNLIKELY(read(fd, buf.bi5, sizeof(buf.bi5)) <= 0)) {
+	/* run the probe */
+	if (rd1bi5(buf.bi5, countof(buf.bi5), fd) < 2U) {
+		/* huh? */
 		return -1;
-	}
-	/* the only thing we can make assumptions about is the timestamp
-	 * we check the two stamps in bi5 and compare their distance */
-	{
-		uint32_t ts0 = be32toh(buf.bi5[0U].ts);
-		uint32_t ts1 = be32toh(buf.bi5[1U].ts);
+	} else {
+		/* the only thing we can make assumptions
+		 * about is the timestamp
+		 * we check the two stamps in bi5
+		 * and compare their distance */
+		uint32_t ts0 = buf.bi5[0U].ts;
+		uint32_t ts1 = buf.bi5[1U].ts;
 
 		if (ts1 - ts0 > 60/*min*/ * 60/*sec*/ * 1000/*msec*/) {
 			/* definitely old_fmt */
 			return -1;
 		}
-
-		/* quickly polish the probe */
-		buf.bi5[0U].ts = ts0;
-		buf.bi5[0U].ap = be32toh(buf.bi5[0U].ap);
-		buf.bi5[0U].bp = be32toh(buf.bi5[0U].bp);
-		buf.bi5[0U].aq.i = be32toh(buf.bi5[0U].aq.i);
-		buf.bi5[0U].bq.i = be32toh(buf.bi5[0U].bq.i);
-
-		buf.bi5[1U].ts = ts1;
-		buf.bi5[1U].ap = be32toh(buf.bi5[1U].ap);
-		buf.bi5[1U].bp = be32toh(buf.bi5[1U].bp);
-		buf.bi5[1U].aq.i = be32toh(buf.bi5[1U].aq.i);
-		buf.bi5[1U].bq.i = be32toh(buf.bi5[1U].bq.i);
+		goto dump_bi5;
 	}
+
+again:
 	/* main loop */
-	do {
-		dump_tick_bi5(ctx, buf.bi5 + 0U);
-		dump_tick_bi5(ctx, buf.bi5 + 1U);
-	} while (!(rd1bi5(buf.bi5, countof(buf.bi5), fd) < 0));
+	switch (i = 0U, rd1bi5(buf.bi5, countof(buf.bi5), fd)) {
+	dump_bi5:
+	case 2U:
+		dump_tick_bi5(ctx, buf.bi5 + i++);
+	case 1U:
+		dump_tick_bi5(ctx, buf.bi5 + i++);
+		goto again;
+	case 0U:
+		break;
+	}
 	return 0;
 }
 
