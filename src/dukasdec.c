@@ -126,11 +126,11 @@ serror(const char *fmt, ...)
 }
 
 
-static int
+static size_t
 rd1(struct dc_s *restrict b, int fd)
 {
 	if (UNLIKELY(read(fd, b, sizeof(*b)) <= 0)) {
-		return -1;
+		return 0U;
 	}
 	b->ts = be64toh(b->ts);
 	b->ap.i = be64toh(b->ap.i);
@@ -156,6 +156,32 @@ rd1bi5(struct dqbi5_s *restrict b, size_t nb, int fd)
 		b->bq.i = be32toh(b->bq.i);
 	} while (b++, --nb);
 	return nrd / sizeof(*b);
+}
+
+static void
+dump_tick(const struct ctx_s ctx[static 1U], struct dc_s *tl)
+{
+/* create one or more sparse ticks, sl1t_t objects */
+	static struct dc_s last;
+	unsigned int ts = tl->ts / 1000;
+	unsigned int ms = tl->ts % 1000;
+	int32_t off = ctx->tsoff;
+
+	if (ctx->all_ticks_p ||
+	    tl->bp.i != last.bp.i || tl->bq.i != last.bq.i) {
+		printf("%u.%03u\t%s\tb\t%f\t%f\n",
+		       ts + off, ms, ctx->sym, tl->bp.d, tl->bq.d);
+	}
+	if (ctx->all_ticks_p ||
+	    tl->ap.i != last.ap.i || tl->aq.i != last.aq.i) {
+		printf("%u.%03u\t%s\ta\t%f\t%f\n",
+		       ts + off, ms, ctx->sym, tl->ap.d, tl->aq.d);
+	}
+	/* for our compressor */
+	if (LIKELY(!ctx->all_ticks_p)) {
+		last = *tl;
+	}
+	return;
 }
 
 static void
@@ -206,8 +232,24 @@ dump(const struct ctx_s ctx[static 1U], int fd)
 		uint32_t ts1 = buf.bi5[1U].ts;
 
 		if (ts1 - ts0 > 60/*min*/ * 60/*sec*/ * 1000/*msec*/) {
-			/* definitely old_fmt */
-			return -1;
+			/* definitely old_fmt,
+			 * convert back what we've got (or thought we've got) */
+			buf.bi5[0U].ts = htobe32(buf.bi5[0U].ts);
+			buf.bi5[0U].ap = htobe32(buf.bi5[0U].ap);
+			buf.bi5[0U].bp = htobe32(buf.bi5[0U].bp);
+			buf.bi5[0U].aq.i = htobe32(buf.bi5[0U].aq.i);
+			buf.bi5[0U].bq.i = htobe32(buf.bi5[0U].bq.i);
+			buf.bi5[1U].ts = htobe32(buf.bi5[1U].ts);
+			buf.bi5[1U].ap = htobe32(buf.bi5[1U].ap);
+			buf.bi5[1U].bp = htobe32(buf.bi5[1U].bp);
+			buf.bi5[1U].aq.i = htobe32(buf.bi5[1U].aq.i);
+			buf.bi5[1U].bq.i = htobe32(buf.bi5[1U].bq.i);
+			/* and now convert forth (to bin) */
+			buf.bin->ap.i = be64toh(buf.bin->ap.i);
+			buf.bin->bp.i = be64toh(buf.bin->bp.i);
+			buf.bin->aq.i = be64toh(buf.bin->aq.i);
+			buf.bin->bq.i = be64toh(buf.bin->bq.i);
+			goto dump_olf;
 		}
 		goto dump_bi5;
 	}
@@ -223,6 +265,12 @@ again:
 		goto again;
 	case 0U:
 		break;
+	}
+	return 0;
+
+	while (rd1(buf.bin, fd)) {
+	dump_olf:
+		dump_tick(ctx, buf.bin);
 	}
 	return 0;
 }
