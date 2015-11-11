@@ -1,0 +1,3 @@
+Usage: dukasdec TICK_FILE
+
+Print contents of TICK_FILE as tsv.

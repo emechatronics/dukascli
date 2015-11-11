@@ -20,6 +20,13 @@ SUFFIXES =
 CLEANFILES += version.c
 EXTRA_DIST += version.c.in
 
+bin_PROGRAMS += dukasdec
+dukasdec_SOURCES = dukasdec.c dukasdec.yuck
+dukasdec_SOURCES += boobs.h
+dukasdec_SOURCES += nifty.h
+dukasdec_SOURCES += version.c version.h
+BUILT_SOURCES += dukasdec.yucc
+
 
 ## version rules
 version.c: version.c.in $(top_builddir)/.version
