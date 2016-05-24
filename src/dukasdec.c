@@ -274,14 +274,14 @@ guess(struct ctx_s *restrict ctx, const char *fn)
 {
 /* guess the specs from the filename FN. */
 	/* currency abbrev stop-set */
-	static char ccy_ss[] = "ABCDEFGHJKNOPRSUXYZ";
+	static char ccy_ss[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 	static char dt_ss[] = "0123456789/";
 	const char *x, *y;
 
 	/* try to snarf off the ccys first */
 	x = fn;
 	while ((x = strpbrk(x, ccy_ss)) != NULL) {
-		if (strspn(x, ccy_ss) == 6UL) {
+		if (strspn(x, ccy_ss) >= 6UL) {
 			static char sym[8U];
 			memcpy(sym, x, 6U);
 			ctx->sym = sym;
@@ -289,6 +289,7 @@ guess(struct ctx_s *restrict ctx, const char *fn)
 		}
 		x++;
 	}
+
 	/* date and time should come afterwards */
 	while ((x = strpbrk(x, dt_ss)) != NULL) {
 		struct tm tm[1];
