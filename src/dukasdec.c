@@ -55,6 +55,8 @@
 #include "boobs.h"
 #include "nifty.h"
 
+#define MSECS	(1000)
+
 typedef union {
 	double d;
 	int64_t i;
@@ -102,10 +104,24 @@ struct dcbi5_s {
 struct ctx_s {
 	/** symbol in question */
 	const char *sym;
+	size_t zym;
 	/** offset for timestamps relative to something other than epoch */
-	int32_t tsoff;
+	time_t off;
 
 	unsigned int all_ticks_p:1U;
+};
+
+static int pipv = 3;
+
+/* symbols known with a pip values of 10^-5 */
+static const char *p5syms[] = {
+	"EURUSD", "GBPUSD", "AUDUSD", "NZDUSD",
+        "USDCAD", "USDCHF", "AUDCAD", "AUDCHF",
+        "AUDNZD", "CADCHF", "EURAUD", "EURCAD",
+        "EURCHF", "EURGBP", "EURNOK", "EURNZD",
+        "EURSEK", "GBPAUD", "GBPCAD", "GBPCHF",
+        "GBPNZD", "NZDCAD", "NZDCHF", "USDNOK",
+        "USDSEK", "USDSGD",
 };
 
 
@@ -123,6 +139,29 @@ serror(const char *fmt, ...)
 	}
 	fputc('\n', stderr);
 	return;
+}
+
+static ssize_t
+tvtostr(char *restrict buf, size_t bsz, uint64_t ts, time_t off)
+{
+	unsigned int tsS = ts / MSECS + off, tsm = ts % MSECS;
+	return snprintf(buf, bsz, "%u.%03u", tsS, tsm);
+}
+
+static ssize_t
+dptostr(char *restrict buf, size_t bsz, double p, int prec)
+{
+	return snprintf(buf, bsz, "%.*f", prec, p);
+}
+
+static ssize_t
+iptostr(char *restrict buf, size_t bsz, uint32_t p, int prec)
+{
+	static unsigned int divi[] = {
+		1U, 10U, 100U, 1000U, 10000U, 100000U,
+	};
+	unsigned int i = p / divi[prec], f = p % divi[prec];
+	return snprintf(buf, bsz, "%u.%0*u", i, prec, f);
 }
 
 
@@ -163,16 +202,26 @@ dump_tick(const struct ctx_s ctx[static 1U], struct dc_s *tl)
 {
 /* create one or more sparse ticks, sl1t_t objects */
 	static struct dc_s last;
-	unsigned int ts = tl->ts / 1000;
-	unsigned int ms = tl->ts % 1000;
-	int32_t off = ctx->tsoff;
 
 	if (ctx->all_ticks_p ||
 	    tl->bp.i != last.bp.i || tl->bq.i != last.bq.i ||
 	    tl->ap.i != last.ap.i || tl->aq.i != last.aq.i) {
-		printf("%u.%03u\t%s\t%f\t%f\t%f\t%f\n",
-		       ts + off, ms, ctx->sym,
-		       tl->bq.d, tl->bp.d, tl->ap.d, tl->aq.d);
+		char buf[256U];
+		size_t len = 0U;
+
+		len += tvtostr(buf + len, sizeof(buf) - len, tl->ts, ctx->off);
+		buf[len++] = '\t';
+		len += (memcpy(buf + len, ctx->sym, ctx->zym), ctx->zym);
+		buf[len++] = '\t';
+		len += snprintf(buf + len, sizeof(buf) - len, "%f", tl->bq.d);
+		buf[len++] = '\t';
+		len += dptostr(buf + len, sizeof(buf) - len, tl->bp.d, pipv);
+		buf[len++] = '\t';
+		len += dptostr(buf + len, sizeof(buf) - len, tl->ap.d, pipv);
+		buf[len++] = '\t';
+		len += snprintf(buf + len, sizeof(buf) - len, "%f", tl->aq.d);
+		buf[len++] = '\n';
+		fwrite(buf, sizeof(*buf), len, stdout);
 	}
 	/* for our compressor */
 	if (LIKELY(!ctx->all_ticks_p)) {
@@ -186,16 +235,26 @@ dump_tick_bi5(const struct ctx_s ctx[static 1U], struct dqbi5_s *tl)
 {
 /* create one or more sparse ticks, sl1t_t objects */
 	static struct dqbi5_s last;
-	unsigned int ts = tl->ts / 1000;
-	unsigned int ms = tl->ts % 1000;
-	int32_t off = ctx->tsoff;
 
 	if (ctx->all_ticks_p ||
 	    tl->bp != last.bp || tl->bq.i != last.bq.i ||
 	    tl->ap != last.ap || tl->aq.i != last.aq.i) {
-		printf("%u.%03u\t%s\t%f\t%u\t%u\t%f\n",
-		       ts + off, ms, ctx->sym,
-		       tl->bq.d, tl->bp, tl->ap, tl->aq.d);
+		char buf[256U];
+		size_t len = 0U;
+
+		len += tvtostr(buf + len, sizeof(buf) - len, tl->ts, ctx->off);
+		buf[len++] = '\t';
+		len += (memcpy(buf + len, ctx->sym, ctx->zym), ctx->zym);
+		buf[len++] = '\t';
+		len += snprintf(buf + len, sizeof(buf) - len, "%f", tl->bq.d);
+		buf[len++] = '\t';
+		len += iptostr(buf + len, sizeof(buf) - len, tl->bp, pipv);
+		buf[len++] = '\t';
+		len += iptostr(buf + len, sizeof(buf) - len, tl->ap, pipv);
+		buf[len++] = '\t';
+		len += snprintf(buf + len, sizeof(buf) - len, "%f", tl->aq.d);
+		buf[len++] = '\n';
+		fwrite(buf, sizeof(*buf), len, stdout);
 	}
 	/* for our compressor */
 	if (LIKELY(!ctx->all_ticks_p)) {
@@ -281,10 +340,12 @@ guess(struct ctx_s *restrict ctx, const char *fn)
 	/* try to snarf off the ccys first */
 	x = fn;
 	while ((x = strpbrk(x, ccy_ss)) != NULL) {
-		if (strspn(x, ccy_ss) >= 6UL) {
-			static char sym[8U];
-			memcpy(sym, x, 6U);
+		size_t n;
+		if ((n = strspn(x, ccy_ss)) >= 6UL) {
+			static char sym[32U];
+			memcpy(sym, x, n);
 			ctx->sym = sym;
+			ctx->zym = n;
 			break;
 		}
 		x++;
@@ -308,7 +369,15 @@ guess(struct ctx_s *restrict ctx, const char *fn)
 			tm->tm_hour = atoi(y);
 			tm->tm_min = 0;
 			tm->tm_sec = 0;
-			ctx->tsoff = timegm(tm);
+			ctx->off = timegm(tm);
+			break;
+		}
+	}
+
+	/* see if pip value needs adapting */
+	for (size_t i = 0U; i < countof(p5syms); i++) {
+		if (!strcmp(ctx->sym, p5syms[i])) {
+			pipv = 5;
 			break;
 		}
 	}
