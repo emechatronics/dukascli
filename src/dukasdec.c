@@ -111,17 +111,15 @@ struct ctx_s {
 	unsigned int all_ticks_p:1U;
 };
 
-static int pipv = 3;
+static int pipv = 5;
 
-/* symbols known with a pip values of 10^-5 */
-static const char *p5syms[] = {
-	"EURUSD", "GBPUSD", "AUDUSD", "NZDUSD",
-        "USDCAD", "USDCHF", "AUDCAD", "AUDCHF",
-        "AUDNZD", "CADCHF", "EURAUD", "EURCAD",
-        "EURCHF", "EURGBP", "EURNOK", "EURNZD",
-        "EURSEK", "GBPAUD", "GBPCAD", "GBPCHF",
-        "GBPNZD", "NZDCAD", "NZDCHF", "USDNOK",
-        "USDSEK", "USDSGD",
+/* currencies which when crossed are quoted to 10^-3 */
+static const char *p3syms[] = {
+	"IDX", "JPY", "CMD", "XAU", "XAG"
+};
+/* same, but the "currency" code is only 2 octets */
+static const char *p2syms[] = {
+	"DE",
 };
 
 
@@ -351,6 +349,12 @@ guess(struct ctx_s *restrict ctx, const char *fn)
 		x++;
 	}
 
+	/* sanity checks */
+	if (UNLIKELY(ctx->zym < 6U)) {
+		/* dukascopy symbols are at least 6 characters long
+		 * so something must be wrong */
+		return -1;
+	}
 	/* date and time should come afterwards */
 	while ((x = strpbrk(x, dt_ss)) != NULL) {
 		struct tm tm[1];
@@ -375,9 +379,16 @@ guess(struct ctx_s *restrict ctx, const char *fn)
 	}
 
 	/* see if pip value needs adapting */
-	for (size_t i = 0U; i < countof(p5syms); i++) {
-		if (!strcmp(ctx->sym, p5syms[i])) {
-			pipv = 5;
+	for (size_t i = 0U; i < countof(p3syms); i++) {
+		if (!memcmp(ctx->sym + ctx->zym - 6U, p3syms[i], 3U) ||
+		    !memcmp(ctx->sym + ctx->zym - 3U, p3syms[i], 4U)) {
+			pipv = 3;
+			break;
+		}
+	}
+	for (size_t i = 0U; i < countof(p2syms); i++) {
+		if (!memcmp(ctx->sym + ctx->zym - 5U, p2syms[i], 2U)) {
+			pipv = 3;
 			break;
 		}
 	}
