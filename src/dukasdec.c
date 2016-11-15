@@ -206,18 +206,29 @@ dump_tick(const struct ctx_s ctx[static 1U], struct dc_s *tl)
 	    tl->ap.i != last.ap.i || tl->aq.i != last.aq.i) {
 		char buf[256U];
 		size_t len = 0U;
+		int xlen;
 
 		len += tvtostr(buf + len, sizeof(buf) - len, tl->ts, ctx->off);
 		buf[len++] = '\t';
 		len += (memcpy(buf + len, ctx->sym, ctx->zym), ctx->zym);
 		buf[len++] = '\t';
-		len += snprintf(buf + len, sizeof(buf) - len, "%f", tl->bq.d);
+		xlen = snprintf(buf + len, sizeof(buf) - len, "%f", tl->bq.d);
+		if (UNLIKELY((unsigned int)xlen > 20U)) {
+			/* huh? this must be shit */
+			return;
+		}
+		len += xlen;
 		buf[len++] = '\t';
 		len += dptostr(buf + len, sizeof(buf) - len, tl->bp.d, pipv);
 		buf[len++] = '\t';
 		len += dptostr(buf + len, sizeof(buf) - len, tl->ap.d, pipv);
 		buf[len++] = '\t';
-		len += snprintf(buf + len, sizeof(buf) - len, "%f", tl->aq.d);
+		xlen = snprintf(buf + len, sizeof(buf) - len, "%f", tl->aq.d);
+		if (UNLIKELY((unsigned int)xlen > 20U)) {
+			/* huh? this must be shit */
+			return;
+		}
+		len += xlen;
 		buf[len++] = '\n';
 		fwrite(buf, sizeof(*buf), len, stdout);
 	}
@@ -239,18 +250,29 @@ dump_tick_bi5(const struct ctx_s ctx[static 1U], struct dqbi5_s *tl)
 	    tl->ap != last.ap || tl->aq.i != last.aq.i) {
 		char buf[256U];
 		size_t len = 0U;
+		int xlen;
 
 		len += tvtostr(buf + len, sizeof(buf) - len, tl->ts, ctx->off);
 		buf[len++] = '\t';
 		len += (memcpy(buf + len, ctx->sym, ctx->zym), ctx->zym);
 		buf[len++] = '\t';
-		len += snprintf(buf + len, sizeof(buf) - len, "%f", tl->bq.d);
+		xlen = snprintf(buf + len, sizeof(buf) - len, "%f", tl->bq.d);
+		if (UNLIKELY((unsigned int)xlen > 20U)) {
+			/* huh? this must be shit */
+			return;
+		}
+		len += xlen;
 		buf[len++] = '\t';
 		len += iptostr(buf + len, sizeof(buf) - len, tl->bp, pipv);
 		buf[len++] = '\t';
 		len += iptostr(buf + len, sizeof(buf) - len, tl->ap, pipv);
 		buf[len++] = '\t';
-		len += snprintf(buf + len, sizeof(buf) - len, "%f", tl->aq.d);
+		xlen = snprintf(buf + len, sizeof(buf) - len, "%f", tl->aq.d);
+		if (UNLIKELY((unsigned int)xlen > 20U)) {
+			/* huh? this must be shit */
+			return;
+		}
+		len += xlen;
 		buf[len++] = '\n';
 		fwrite(buf, sizeof(*buf), len, stdout);
 	}
